@@ -1,0 +1,6 @@
+interface:
+  display_name: "会话标题状态"
+  short_description: "仅更新当前主会话的标题，并用状态前缀反映进度与等待"
+  default_prompt: "使用 $thread-status 检查当前主会话的任务状态，并在需要时更新标题。"
+policy:
+  allow_implicit_invocation: true
