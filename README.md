@@ -2,58 +2,75 @@
 
 给 Codex 主会话标题加上状态前缀。只维护正在进行的这一条主会话，不扫描历史会话，也不在后台监听。
 
-标题形如 `[doing] 原主题`。状态只有七个小写值：`draft`、`doing`、`wait`、`blocked`、`paused`、`drop`、`complete`。
+标题形如 `[doing] 原主题`。状态只有八个小写值：`draft`、`doing`、`scheduled`、`wait`、`blocked`、`paused`、`drop`、`complete`。
 
-## 安装
+## 一键安装
 
-将技能安装到个人技能目录。安装路径须为空：
+需要 Python 3.9 或更新版本，仅使用标准库，无需安装第三方依赖。获取源码后，执行一次安装命令即可同时安装技能和配置全局触发规则，不需要手工编辑 `AGENTS.md`：
 
 ```bash
-mkdir -p ~/.agents/skills
-git clone https://github.com/ganlinzhen/codex-thread-status-skill.git ~/.agents/skills/thread-status
+git clone https://github.com/ganlinzhen/codex-thread-status-skill.git
+cd codex-thread-status-skill
+python3 scripts/install.py
 ```
 
-安装完成后，技能文件应直接位于：
+默认把技能复制到 `~/.agents/skills/thread-status/`，并向 `~/.codex/AGENTS.md` 添加一段带 `thread-status:begin` / `thread-status:end` 标记的触发规则。设置了 `CODEX_HOME` 时，规则与安装记录改写到该目录；技能目录仍保持默认位置。
 
-```text
-~/.agents/skills/thread-status/SKILL.md
+安装器保留标记外的原有内容、换行和文件权限。重复执行不会重复添加规则；已安装技能存在个人改动或目标目录属于其他安装时，停止覆盖。安装记录保存在 Codex 配置目录的 `thread-status-install.json`，用于识别本安装器管理的对象。更新技能版本时，先保留个人修改、卸载，再运行新版安装器；重复安装不自动替换技能源版本。
+
+安装完成后在新会话验证。如果技能尚未显示，可重新启动 Codex。技能仍依赖宿主提供标题读取和改名工具；装好文件不会为缺少这些工具的宿主补出能力，也不会让空白或空闲会话在后台自行改名。
+
+## 卸载
+
+使用已安装副本中的脚本即可卸载：
+
+```bash
+python3 ~/.agents/skills/thread-status/scripts/uninstall.py
 ```
 
-安装路径须为空，已有同名技能时先核对归属，不覆盖或移动未知内容。保留完整的 `references/` 和 `agents/`。安装本身不会改写 `~/.codex/AGENTS.md`，也不会改当前会话标题。
+也可以从下载的源码目录执行 `python3 scripts/uninstall.py`。卸载仅移除本安装器的托管规则，保留用户原有内容及后来在标记外增加的规则。只有技能目录由本安装器创建、且内容未变时才删除技能副本；预先存在的源码或符号链接、用户修改过的技能会保留并提示，不删除下载的源码仓库。
 
-## 启用
+如果手工修改了托管规则内部，脚本会停止，避免抹掉这些修改。安装前已有的手工触发规则属于用户原文，不由本安装器卸载。
 
-把下面这一段原样加入 `~/.codex/AGENTS.md`。规则只描述本技能的通用行为，不含本机绝对路径。
+## 自定义路径
 
-```markdown
-## 当前会话标题状态
+安装与卸载须使用相同参数：
 
-- 主会话在首轮理解请求后、任务状态发生实质变化时，以及每轮最终回复前，显式使用 `$thread-status`，读取并遵循已安装的 `~/.agents/skills/thread-status/SKILL.md`，检查当前会话标题。仅当算出的新标题与当前标题不同时，才调用一次改名。
-- 只管理当前主会话。子 agent 不执行本规则，不调用改名工具。不扫描或修改历史会话，不做批量改名，不注册定时任务或后台监听。
-- 写完回复、交付当前阶段或暂时空闲，都不表示整个会话完成。还有已授权且可以自主继续的工作时保持 `doing`。当前阶段已经交付、下一步等待用户验收或安排时使用 `wait`。
-- 只有用户明确确认整个会话目标已经完成，或直接要求把本会话标为完成，才使用 `complete`。部分验收、简单认可、测试通过和助手自行交付，都不构成整个会话完成的依据。
-- 用户确认整个会话完成后，按技能盘点本会话绑定的 worktree，以及本会话额外生成的文档、页面等资源。完成确认只允许盘点，不等于授权删除、移动、归档或撤销发布。没有与具体对象、动作和条件匹配的既有授权时，先列出对象、建议动作和原因。
-- 改名依赖当前环境里的 Codex App 工具 `set_thread_title`。读取当前标题依赖 `read_thread`，并且只在环境已提供 `CODEX_THREAD_ID` 时，把该值原样作为 `threadId`。环境变量或工具缺失时按技能跳过，不猜测会话，不伪造已经改名。本规则不保证每次都会触发，也不是平台级强制。
-- 新建的空白会话没有自动监听。只有该会话的首轮实际执行本技能后，标题才会开始按规则维护。用户在本会话明确要求不要自动改名时，本会话停止改名。
+```bash
+python3 scripts/install.py --codex-home /path/to/codex --skills-dir /path/to/skills
+python3 scripts/uninstall.py --codex-home /path/to/codex --skills-dir /path/to/skills
 ```
 
-对话中也可以直接写出 `$thread-status`，让当前主会话按本技能检查一次。这仍然要求该轮真正执行技能。已经打开、且之后不再跑到上述检查点的会话，不会因为刚装上技能就自行补标题。
+全局规则的模板位于 `prompts/global-trigger.md`，只负责读取技能；状态判断和收尾行为仍以 `SKILL.md` 为准。对话中也可以直接写 `$thread-status` 检查一次。规则是模型执行约定，不是平台级强制触发。
 
-## 七种状态
+## 八种状态
 
 | 状态 | 含义 |
 | --- | --- |
 | `draft` | 目标还不清楚。 |
 | `doing` | 已经开工，当前仍有可以继续做的工作。 |
+| `scheduled` | 已确认启用周期调度，当前等待下一轮执行，无需用户处理。 |
 | `wait` | 等待用户输入、决定、验收，或阶段交付后等待后续安排。 |
 | `blocked` | 外部条件挡住，当前做不下去。 |
-| `paused` | 用户明确要求暂停整个会话目标。 |
+| `paused` | 用户明确暂停整个会话目标，或已核实本会话调度已暂停。 |
 | `drop` | 用户明确要求放弃整个会话目标。 |
 | `complete` | 用户明确确认整个会话目标已完成，或直接要求把本会话标为完成。 |
 
-`complete`、`paused` 和 `drop` 只接受用户针对整个会话的明确说法。放弃一个方案或暂停一个步骤，不等于放弃或暂停整个会话。旧标题里的 `[success]` 只是待替换前缀，不是验收证据。
+`complete` 和 `drop` 只接受用户针对整个会话的明确说法；`paused` 也可以依据已核实的调度暂停状态。放弃一个方案或暂停一个步骤，不等于放弃或暂停整个会话。旧标题里的 `[success]` 只是待替换前缀，不是验收证据。
 
 主题尽量保留。重复的状态前缀收成一个，主题里原有的其他方括号保留，例如 `[doing] [TASK-1] 修复登录`。
+
+## 定时任务
+
+已确认绑定到本会话且启用周期调度的任务，按下面的循环更新：
+
+```text
+[scheduled] 等待下一轮 → [doing] 本轮执行 → [scheduled] 正常结束
+```
+
+“没有新内容”“无需操作”以及无需逐轮验收的常规报告，都属于本轮正常结束。只有需要用户输入、决策、授权或处理异常时才用 `wait`。外部故障导致无法继续时用 `blocked`，不能把未解决的失败当成正常排期；明确暂停或核实调度暂停后使用 `paused`。
+
+一次检查完成不代表整个监控结束，`complete` 始终需要用户明确确认。只在提到“每天检查”时，不会推断已有调度；取消调度也不自动判为完成。技能不创建或修改定时任务，也不会在后台持续刷新标题。
 
 ## 完成之后
 
@@ -73,11 +90,16 @@ git clone https://github.com/ganlinzhen/codex-thread-status-skill.git ~/.agents/
 SKILL.md
 references/closeout.md
 agents/openai.yaml
+prompts/global-trigger.md
+scripts/install.py
+scripts/uninstall.py
+scripts/_installation.py
+scripts/test_installation.py
 README.md
 LICENSE
 ```
 
-行为以 `SKILL.md` 为准。本文只说明如何安装、如何写上全局触发规则，以及公开发布时需要知道的边界。
+行为以 `SKILL.md` 为准。运行 `python3 scripts/test_installation.py` 可在临时目录验证安装与卸载，不触碰当前用户的全局配置。
 
 ## 许可
 
